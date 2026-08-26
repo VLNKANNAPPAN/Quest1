@@ -267,7 +267,7 @@ def find_dialogue(
     target_dialogue: str,
     method: str = "auto",
     score_fn_name: str = "rapidfuzz",
-    model_size: str = "small",
+    model_size: str = "tiny",
     top_k: int = 5,
     use_inverted_index: bool = True,
     config: Optional[PipelineConfig] = None,

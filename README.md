@@ -78,6 +78,28 @@ pip install -e .
 
 ---
 
+## 🎯 4 Key Outputs
+
+For every target dialogue query, the system delivers 4 essential outputs:
+
+| Key Output | Description | Example |
+| :--- | :--- | :--- |
+| **1. Timestamp** | Exact audio onset & interval (start / end in seconds) | `530.44s - 532.68s` (onset: `530.44s`) |
+| **2. Frame Number** | Discrete video frame index: $\text{round}(\text{timestamp} \times \text{FPS})$ | `#6365` |
+| **3. Extracted Dialogue** | Raw transcribed text matched around the target query | `"African love geography."` |
+| **4. Video Frame Image** | High-res JPEG snapshot extracted at the exact timestamp | `cache/frames/e62fe991ec4f0366_frame_6365.jpg` |
+
+### 🖼️ Where to Access Extracted Frames
+
+All extracted frame images are automatically saved to the **`cache/frames/`** directory:
+```
+video_dialogue_retrieval/cache/frames/<video_id>_frame_<frame_number>.jpg
+```
+- The exact absolute path is printed directly in the terminal output after every search.
+- You can open the image directly in any image viewer, browser, or VS Code file preview.
+
+---
+
 ## 🚀 Quick Usage
 
 ### Python API
@@ -88,16 +110,15 @@ from video_dialogue import find_dialogue
 result = find_dialogue(
     video_url="https://www.youtube.com/watch?v=W_s81Dn4uEI",
     target_dialogue="I freaking love geography",
-    model_size="small",
-    search_method="rare_anchor_fuzzy",
-    score_fn="rapidfuzz",
+    model_size="tiny",  # default: tiny (fastest); use 'small' or 'medium' for higher ASR precision
 )
 
-if result.best_match:
-    print(f"Match Found: {result.best_match.matched_text}")
-    print(f"Timestamp  : {result.best_match.start_time:.2f}s -> {result.best_match.end_time:.2f}s")
-    print(f"Frame Index: #{result.best_match.frame_number}")
-    print(f"Saved Frame: {result.best_match.frame_image_path}")
+if result["success"]:
+    best = result["matches"][0]
+    print(f"Timestamp  : {best['start_timestamp']:.2f}s -> {best['end_timestamp']:.2f}s")
+    print(f"Frame Index: #{best['start_frame']}")
+    print(f"Dialogue   : \"{best['matched_text']}\"")
+    print(f"Frame Image: {best['frame_path']}")
 ```
 
 ### Command-Line Interface (CLI)
@@ -109,11 +130,11 @@ cd video_dialogue_retrieval
 
 Then run with your Python interpreter:
 ```bash
-# Simplest command — the system automatically cascades through search methods
+# Simplest command (auto strategy selection + default 'tiny' Whisper model):
 python run.py search --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" --query "I freaking love geography"
 
 # Or with custom Whisper model size (tiny, base, small, medium, large-v3)
-python run.py search --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" --query "I freaking love geography" --model-size tiny
+python run.py search --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" --query "I freaking love geography" --model-size small
 
 # Run comparative algorithm benchmark
 python run.py benchmark

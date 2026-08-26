@@ -112,6 +112,28 @@ pip install -e ".[dev,embedding]"
 
 ---
 
+## 🎯 4 Key Outputs
+
+For every target dialogue query, the system delivers 4 essential outputs:
+
+| Key Output | Description | Example |
+| :--- | :--- | :--- |
+| **1. Timestamp** | Exact audio onset & interval (start / end in seconds) | `530.44s - 532.68s` (onset: `530.44s`) |
+| **2. Frame Number** | Discrete video frame index: $\text{round}(\text{timestamp} \times \text{FPS})$ | `#6365` |
+| **3. Extracted Dialogue** | Raw transcribed text matched around the target query | `"African love geography."` |
+| **4. Video Frame Image** | High-res JPEG snapshot extracted at the exact timestamp | `cache/frames/e62fe991ec4f0366_frame_6365.jpg` |
+
+### 🖼️ Where to Access Extracted Frames
+
+All extracted frame images are automatically saved to the **`cache/frames/`** directory:
+```
+video_dialogue_retrieval/cache/frames/<video_id>_frame_<frame_number>.jpg
+```
+- The exact path is shown in the terminal output and stored in the result JSON.
+- Open the image directly in any viewer, web browser, or VS Code image preview.
+
+---
+
 ## 💻 Python API Usage
 
 ### Basic Search (`find_dialogue`)
@@ -119,11 +141,9 @@ pip install -e ".[dev,embedding]"
 from video_dialogue import find_dialogue
 
 result = find_dialogue(
-    video_url="https://example.com/video.mp4", # or local path "/path/to/movie.mp4"
+    video_url="https://example.com/video.mp4", # or local path "movie.mp4"
     target_dialogue="My mind rebels at stagnation",
-    method="rare_anchor_fuzzy",
-    score_fn_name="rapidfuzz",
-    model_size="small",
+    model_size="tiny",  # default: tiny (fastest); use 'small' or 'medium' for higher ASR precision
     top_k=3,
 )
 
@@ -141,7 +161,7 @@ from video_dialogue import DialogueRetrievalPipeline, PipelineConfig
 
 config = PipelineConfig(
     cache_dir=Path("my_project_cache"),
-    default_model_size="small",
+    default_model_size="tiny",
     whisper_beam_size=2,
     whisper_vad_filter=True,
     fuzzy_length_tolerance=2,

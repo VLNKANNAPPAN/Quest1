@@ -56,7 +56,16 @@ def cmd_search(args: argparse.Namespace) -> None:
         print(f"[ERROR] Search failed: {result.message}")
         sys.exit(1)
 
-    print("[MATCH] Match found!\n")
+    best = result.matches[0]
+    print("=" * 70)
+    print("🎯 KEY OUTPUTS (Best Match):")
+    print(f"  1. Timestamp       : {best.start_timestamp:.2f}s - {best.end_timestamp:.2f}s (onset: {best.start_timestamp:.2f}s)")
+    print(f"  2. Frame Number    : #{best.start_frame}")
+    print(f"  3. Extracted Text  : \"{best.matched_text}\"")
+    print(f"  4. Frame Image     : {best.frame_path}")
+    print("=" * 70)
+    print()
+
     table_data = []
     for m in result.matches:
         table_data.append([
@@ -72,6 +81,8 @@ def cmd_search(args: argparse.Namespace) -> None:
     print(tabulate(table_data, headers=headers, tablefmt="github"))
     if result.result_file:
         print(f"\nSaved report to: {result.result_file}")
+    if best.frame_path:
+        print(f"To view extracted frame image, open: {best.frame_path}\n")
 
 
 def cmd_benchmark(args: argparse.Namespace) -> None:
@@ -149,9 +160,9 @@ def main(argv: Optional[List[str]] = None) -> None:
         help="Similarity score function (default: rapidfuzz)",
     )
     search_parser.add_argument(
-        "--model-size", default="small",
+        "--model-size", default="tiny",
         choices=["tiny", "base", "small", "medium", "large-v3"],
-        help="Whisper model size (default: small)",
+        help="Whisper model size (default: tiny)",
     )
     search_parser.add_argument("-k", "--top-k", type=int, default=5, help="Number of top matches to return")
     search_parser.add_argument("--no-index", action="store_true", help="Disable inverted index for rare anchor search")
