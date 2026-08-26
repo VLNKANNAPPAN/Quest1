@@ -15,6 +15,13 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from tabulate import tabulate
 
 from .config.settings import PipelineConfig, get_default_config
@@ -66,7 +73,7 @@ def cmd_search(args: argparse.Namespace) -> None:
 
     best = result.matches[0]
     print("=" * 70)
-    print("🎯 KEY OUTPUTS (Best Match):")
+    print("[KEY OUTPUTS] (Best Match):")
     print(f"  1. Timestamp       : {best.start_timestamp:.2f}s - {best.end_timestamp:.2f}s (onset: {best.start_timestamp:.2f}s)")
     print(f"  2. Frame Number    : #{best.start_frame}")
     print(f"  3. Extracted Text  : \"{best.matched_text}\"")
