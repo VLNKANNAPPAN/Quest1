@@ -127,3 +127,70 @@ Make these changes and do a test run
 how can i make the whole system better, are there any edge cases that i can handle or any other features i can add, or any other methods to reduce redundancy and increase speed
 
 16)
+ydl_opts = {
+    "outtmpl": str(AUDIO_DIR / f"{video_id}_raw.%(ext)s"),
+    "format": "bestaudio/best",
+    "noplaylist": True,
+    "quiet": True,
+}
+with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    info = ydl.extract_info(url, download=True)   # <-- one call, does both
+
+raw_path = next(AUDIO_DIR.glob(f"{video_id}_raw.*"))
+subprocess.run(["ffmpeg", "-y", "-i", str(raw_path), "-ac", "1", "-ar", str(SAMPLE_RATE),
+                "-c:a", "pcm_s16le", str(audio_path)], check=True,
+               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+raw_path.unlink(missing_ok=True)
+
+metadata = {
+    "duration": float(info.get("duration") or 0.0),
+    "fps": float(info.get("fps")) if info.get("fps") else None,
+    "width": int(info.get("width") or 0),
+    "height": int(info.get("height") or 0),
+    "video_codec": info.get("vcodec"),
+    "audio_codec": info.get("acodec"),
+    "has_audio": info.get("acodec") not in (None, "none"),
+}
+return audio_path, metadata
+
+I think the older version was faster
+
+## Bug: Redundant network call causes avoidable failure in video acquisition
+
+**Symptom:** Pipeline run failed at "Step 2/5: Computing audio fingerprint" with:
+`SSLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol`
+
+**Where:** `get_or_create_video_record()` in `orchestrator.py` (line ~58) calls
+`self.media.get_metadata(url)` → `get_light_metadata()` in `audio/downloader.py`
+(line ~90), which makes its own `ydl.extract_info(url, download=False)` call to
+the source site.
+
+**Root cause:** This is a *second, independent* network round-trip to the same
+site, made immediately after `download_audio_only()` already succeeded (997MB
+downloaded cleanly in 2:45 — confirmed network/yt-dlp are fine). The SSL EOF
+error is a transient failure (antivirus HTTPS interception or a flaky
+handshake — confirmed non-structural via DNS/CLI testing in this session), but
+it only had the chance to strike because of this avoidable extra call. The
+video's info dict (duration, fps, width, height, codecs) is already returned
+by the `extract_info(download=True)` call inside `download_audio_only()` —
+`get_light_metadata()` re-fetches data that's already in hand.
+
+**Fix:** Merge the download and metadata extraction into a single
+`extract_info()` call. Have `download_audio_only()` (or a new
+`download_audio_only_with_metadata()`) capture and return the `info` dict from
+its own `download=True` call, and have `get_or_create_video_record()` consume
+that instead of calling `get_light_metadata()` separately. This removes one
+full network dependency from the critical path — not just faster, but
+structurally removes a failure point (download-succeeds-but-metadata-fails
+becomes impossible).
+
+**Secondary/defensive fix (independent of the above):** Wrap all yt-dlp
+network calls (`download_audio_only`, `download_video`, and — until merged —
+`get_light_metadata`) in a retry-with-backoff (e.g. 3 attempts, exponential
+backoff) around `yt_dlp.utils.DownloadError` / `SSLError`. This session hit
+transient SSL/connection errors twice on otherwise-healthy network/DNS/yt-dlp
+setup (confirmed via `Resolve-DnsName`, `yt-dlp -v` direct CLI test succeeding);
+both would likely have been absorbed by a retry.
+what is the cause of this error
+
+
