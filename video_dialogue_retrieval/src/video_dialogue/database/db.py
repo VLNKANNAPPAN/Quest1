@@ -85,10 +85,10 @@ class DatabaseManager:
         video_id: str,
         url: str,
         fingerprint: Optional[str],
-        metadata: Union[VideoMetadata, Dict[str, Any]],
+        metadata: Union[VideoMetadata, VideoRecord, Dict[str, Any]],
     ) -> None:
         """Insert or replace a video entry in the database."""
-        if isinstance(metadata, VideoMetadata):
+        if hasattr(metadata, "to_dict"):
             meta_dict = metadata.to_dict()
         else:
             meta_dict = metadata

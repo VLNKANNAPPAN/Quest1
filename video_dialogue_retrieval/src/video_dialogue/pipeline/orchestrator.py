@@ -8,7 +8,7 @@ from typing import Optional, Union, Dict, Any, List
 from ..config.settings import PipelineConfig, get_default_config
 from ..core.models import VideoRecord, DialogueMatch, PipelineResult
 from ..database.db import DatabaseManager
-from ..audio.downloader import MediaManager, get_video_id
+from ..audio.downloader import MediaManager, get_video_id, check_has_audio
 from ..audio.fingerprint import compute_audio_fingerprint
 from ..asr.transcriber import WhisperTranscriber
 from ..search.normalizer import normalize_text, build_word_index
@@ -47,33 +47,45 @@ class DialogueRetrievalPipeline:
         if progress:
             progress.workflow_stage(1, 5, "Acquiring the audio track.")
             progress.set_download_label("audio")
-        audio_path = self.media.get_audio(url_or_path, progress_hook=progress.download if progress else None)
+        audio_path, light_meta = self.media.get_audio_with_metadata(
+            url_or_path, progress_hook=progress.download if progress else None,
+        )
+        light_meta.has_audio = check_has_audio(audio_path)
         if progress:
             progress.workflow_stage(2, 5, "Computing audio fingerprint.")
         fingerprint = compute_audio_fingerprint(audio_path)
 
+        # Duration must agree before an acoustic fingerprint can share a
+        # transcript. A trimmed/repeated clip may fingerprint similarly but
+        # has different timestamps and therefore different frame numbers.
         existing = self.db.get_video_by_fingerprint(fingerprint)
         if existing is not None:
+            if light_meta.has_audio and not existing.has_audio:
+                existing.has_audio = True
+                self.db.insert_video(existing.video_id, existing.url, fingerprint, existing)
+            duration_delta = abs((existing.duration or 0.0) - (light_meta.duration or 0.0))
+            same_duration = duration_delta <= self.config.dedup_duration_tolerance_seconds
             if existing.video_id != video_id:
+                if same_duration:
+                    logger.info(
+                        "Fingerprint and duration match; reusing transcript from '%s' (video_id=%s).",
+                        existing.url, existing.video_id,
+                    )
+                    existing.fps = light_meta.fps or existing.fps
+                    existing.duration = light_meta.duration or existing.duration
+                    existing.current_url = url_or_path
+                    return existing
                 logger.info(
-                    "Fingerprint match! Content was previously registered as '%s' (video_id=%s). "
-                    "Reusing cached video_id for transcript sharing.",
-                    existing.url,
-                    existing.video_id,
+                    "Fingerprint matched, but durations differ by %.1fs; indexing as separate media.",
+                    duration_delta,
                 )
-                light_meta = self.media.get_metadata(url_or_path)
-                existing.fps = light_meta.fps or existing.fps
-                existing.duration = light_meta.duration or existing.duration
-                existing.current_url = url_or_path
-                return existing
             else:
                 existing.current_url = url_or_path
                 return existing
 
         # First time seeing this audio fingerprint
-        light_meta = self.media.get_metadata(url_or_path)
         self.db.insert_video(video_id, url_or_path, fingerprint, light_meta)
-        record = self.db.get_video_by_fingerprint(fingerprint)
+        record = self.db.get_video_by_id(video_id)
         if record is None:
             record = VideoRecord(
                 video_id=video_id,
@@ -115,16 +127,20 @@ class DialogueRetrievalPipeline:
         video_id = record.video_id
         fps = record.fps or 25.0
 
+        audio_path = self.config.audio_dir / f"{video_id}.wav"
         if not record.has_audio:
-            return PipelineResult(
-                success=False,
-                video={"url": video_url, "duration_seconds": record.duration, "fps": fps},
-                query={"dialogue": target_dialogue},
-                message="Video has no audio track.",
-            )
+            if audio_path.exists() and check_has_audio(audio_path):
+                record.has_audio = True
+                self.db.insert_video(record.video_id, record.url, record.audio_fingerprint, record)
+            else:
+                return PipelineResult(
+                    success=False,
+                    video={"url": video_url, "duration_seconds": record.duration, "fps": fps},
+                    query={"dialogue": target_dialogue},
+                    message="Video has no audio track.",
+                )
 
         # 2. Speech-to-Text with DB transcript cache
-        audio_path = self.config.audio_dir / f"{video_id}.wav"
         if not audio_path.exists():
             audio_path = self.media.get_audio(video_url, progress_hook=progress.download if progress else None)
 

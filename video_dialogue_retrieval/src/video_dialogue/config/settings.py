@@ -24,6 +24,12 @@ class PipelineConfig:
     whisper_vad_filter: bool = True
     whisper_min_silence_duration_ms: int = 300
 
+    # Download & cache safety
+    audio_max_bitrate_kbps: int = 96
+    video_max_height: int = 480
+    concurrent_fragment_downloads: int = 5
+    dedup_duration_tolerance_seconds: float = 2.0
+
     # Search & matching parameters
     fuzzy_length_tolerance: int = 2
     fuzzy_extra_context: int = 2

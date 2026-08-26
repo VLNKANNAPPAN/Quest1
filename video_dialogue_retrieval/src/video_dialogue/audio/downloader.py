@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional, Union, Dict, Any, Callable
 
@@ -14,6 +15,43 @@ from ..config.settings import PipelineConfig, get_default_config
 from ..media_tools import ffmpeg_executable
 
 logger = logging.getLogger(__name__)
+
+NETWORK_RETRY_ATTEMPTS = 3
+
+
+def _with_network_retries(operation: Callable[[], Any], description: str) -> Any:
+    """Run a yt-dlp operation with bounded exponential-backoff retries."""
+    for attempt in range(1, NETWORK_RETRY_ATTEMPTS + 1):
+        try:
+            return operation()
+        except yt_dlp.utils.DownloadError:
+            if attempt == NETWORK_RETRY_ATTEMPTS:
+                raise
+            delay_seconds = 2 ** (attempt - 1)
+            logger.warning(
+                "%s failed (attempt %d/%d); retrying in %ds.",
+                description, attempt, NETWORK_RETRY_ATTEMPTS, delay_seconds,
+            )
+            time.sleep(delay_seconds)
+
+
+def _metadata_from_info(info: Dict[str, Any]) -> VideoMetadata:
+    """Convert yt-dlp's already-fetched info dictionary to project metadata."""
+    fps = info.get("fps")
+    if not fps:
+        for fmt in info.get("formats", []):
+            if fmt.get("fps"):
+                fps = fmt["fps"]
+                break
+    return VideoMetadata(
+        duration=float(info.get("duration") or 0.0),
+        fps=float(fps) if fps else None,
+        width=int(info.get("width") or 0),
+        height=int(info.get("height") or 0),
+        video_codec=info.get("vcodec"),
+        audio_codec=info.get("acodec"),
+        has_audio=info.get("acodec") not in (None, "none"),
+    )
 
 
 def get_video_id(url_or_path: str) -> str:
@@ -86,34 +124,56 @@ def get_light_metadata(url_or_path: str) -> VideoMetadata:
         return get_local_metadata(Path(url_or_path))
 
     ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url_or_path, download=False)
+    def extract() -> Dict[str, Any]:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(url_or_path, download=False)
 
-    fps = info.get("fps")
-    if not fps:
-        for f in info.get("formats", []):
-            if f.get("fps"):
-                fps = f["fps"]
-                break
+    return _metadata_from_info(_with_network_retries(extract, "Metadata request"))
 
-    return VideoMetadata(
-        duration=float(info.get("duration") or 0.0),
-        fps=float(fps) if fps else None,
-        width=int(info.get("width") or 0),
-        height=int(info.get("height") or 0),
-        video_codec=info.get("vcodec"),
-        audio_codec=info.get("acodec"),
-        has_audio=info.get("acodec") not in (None, "none"),
-    )
+
+def check_has_audio(audio_path: Union[str, Path]) -> bool:
+    """Ground truth: probe the actual extracted audio file, don't trust
+    yt-dlp's pre-download acodec field (unreliable for muxed HLS streams)."""
+    p = Path(audio_path)
+    if not p.exists() or p.stat().st_size == 0:
+        return False
+    cmd = [
+        "ffprobe",
+        "-v", "error",
+        "-show_entries", "stream=codec_type",
+        "-of", "csv=p=0",
+        str(p),
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return "audio" in result.stdout.lower()
+    except Exception as exc:
+        logger.warning("ffprobe audio check failed for %s: %s", audio_path, exc)
+        return False
 
 
 def download_audio_only(
     url_or_path: str,
     output_dir: Union[str, Path] = "cache/audio",
     sample_rate: int = 16000,
+    max_bitrate_kbps: int = 96,
     progress_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Path:
     """Acquire audio track only (mono 16kHz PCM WAV) for fingerprinting and ASR."""
+    audio_path, _metadata = download_audio_only_with_metadata(
+        url_or_path, output_dir, sample_rate, max_bitrate_kbps, progress_hook,
+    )
+    return audio_path
+
+
+def download_audio_only_with_metadata(
+    url_or_path: str,
+    output_dir: Union[str, Path] = "cache/audio",
+    sample_rate: int = 16000,
+    max_bitrate_kbps: int = 96,
+    progress_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
+) -> tuple[Path, VideoMetadata]:
+    """Download/extract audio and return metadata with ground-truth audio probe."""
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     video_id = get_video_id(url_or_path)
@@ -121,7 +181,11 @@ def download_audio_only(
 
     if audio_path.exists():
         logger.info("Reusing cached audio: %s", audio_path.name)
-        return audio_path
+        # Ground truth: probe the actual cached audio file directly on disk,
+        # skipping unnecessary and fragile remote metadata network requests.
+        meta = get_local_metadata(audio_path)
+        meta.has_audio = check_has_audio(audio_path)
+        return audio_path, meta
 
     if is_local_file(url_or_path):
         cmd = [
@@ -135,21 +199,28 @@ def download_audio_only(
             str(audio_path),
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        return audio_path
+        meta = get_local_metadata(Path(url_or_path))
+        meta.has_audio = check_has_audio(audio_path)
+        return audio_path, meta
 
     # Remote URL download
     tmp_template = str(out_dir / f"{video_id}_raw.%(ext)s")
     ydl_opts = {
         "outtmpl": tmp_template,
-        "format": "bestaudio/best",
+        # Whisper receives 16 kHz mono PCM, so downloading a high-bitrate
+        # source only wastes bandwidth before conversion.
+        "format": f"bestaudio[abr<={max_bitrate_kbps}]/bestaudio/best",
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "progress_hooks": [progress_hook] if progress_hook else [],
         "ffmpeg_location": ffmpeg_executable(),
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url_or_path])
+    def download() -> Dict[str, Any]:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(url_or_path, download=True)
+
+    info = _with_network_retries(download, "Audio download")
 
     raw_files = [p for p in out_dir.glob(f"{video_id}_raw.*") if not p.name.endswith((".mhtml", ".json"))]
     if not raw_files:
@@ -168,13 +239,20 @@ def download_audio_only(
     ]
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     raw_path.unlink(missing_ok=True)
-    return audio_path
+    meta = _metadata_from_info(info)
+    meta.has_audio = check_has_audio(audio_path)
+    if not meta.duration or meta.duration == 0.0:
+        local_meta = get_local_metadata(audio_path)
+        meta.duration = local_meta.duration
+    return audio_path, meta
 
 
 def download_video(
     url_or_path: str,
     output_dir: Union[str, Path] = "cache/videos",
     force: bool = False,
+    max_height: int = 480,
+    concurrent_fragments: int = 5,
     progress_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Path:
     """Download full video container or return local path — deferred until frame extraction."""
@@ -191,16 +269,20 @@ def download_video(
 
     ydl_opts = {
         "outtmpl": str(output_path),
-        "format": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+        "format": f"bestvideo[height<={max_height}]+bestaudio/best[height<={max_height}]/best",
         "merge_output_format": "mp4",
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "progress_hooks": [progress_hook] if progress_hook else [],
         "ffmpeg_location": ffmpeg_executable(),
+        "concurrent_fragment_downloads": concurrent_fragments,
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url_or_path])
+    def download() -> None:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url_or_path])
+
+    _with_network_retries(download, "Video download")
 
     return output_path
 
@@ -222,6 +304,19 @@ class MediaManager:
             url_or_path,
             output_dir=self.config.audio_dir,
             sample_rate=self.config.sample_rate,
+            max_bitrate_kbps=self.config.audio_max_bitrate_kbps,
+            progress_hook=progress_hook,
+        )
+
+    def get_audio_with_metadata(
+        self, url_or_path: str, progress_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> tuple[Path, VideoMetadata]:
+        """Acquire audio and its metadata without a second request when downloading."""
+        return download_audio_only_with_metadata(
+            url_or_path,
+            output_dir=self.config.audio_dir,
+            sample_rate=self.config.sample_rate,
+            max_bitrate_kbps=self.config.audio_max_bitrate_kbps,
             progress_hook=progress_hook,
         )
 
@@ -230,5 +325,7 @@ class MediaManager:
             url_or_path,
             output_dir=self.config.video_dir,
             force=force,
+            max_height=self.config.video_max_height,
+            concurrent_fragments=self.config.concurrent_fragment_downloads,
             progress_hook=progress_hook,
         )

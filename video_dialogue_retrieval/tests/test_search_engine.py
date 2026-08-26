@@ -50,6 +50,16 @@ def test_rare_anchor_fuzzy_index_equivalence(sample_transcript_words):
     assert abs(linear_results[0].score - indexed_results[0].score) < 1e-6
 
 
+def test_rare_anchor_falls_back_when_asr_loses_every_query_word():
+    transcript = ["i", "really", "adore", "geography", "today"]
+    target = ["freaking", "love", "maps"]
+
+    results = rare_anchor_fuzzy_search(transcript, target, score_fn=difflib_score)
+
+    assert results
+    assert results[0].method == "rare_anchor_fuzzy_fallback"
+
+
 def test_search_dialogue_dispatch(sample_transcript_words):
     target = ["my", "mind", "rebels", "at", "stagnation"]
 

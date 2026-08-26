@@ -13,7 +13,7 @@ from .core.models import (
 )
 from .database.db import DatabaseManager
 from .audio.fingerprint import compute_audio_fingerprint
-from .audio.downloader import MediaManager, get_video_id, get_light_metadata
+from .audio.downloader import MediaManager, get_video_id, get_light_metadata, check_has_audio
 from .asr.transcriber import WhisperTranscriber
 from .search.normalizer import normalize_text, build_word_index
 from .search.scorers import get_score_fn, difflib_score, rapidfuzz_score, embedding_score
@@ -48,6 +48,7 @@ __all__ = [
     "MediaManager",
     "get_video_id",
     "get_light_metadata",
+    "check_has_audio",
     "WhisperTranscriber",
     "normalize_text",
     "build_word_index",

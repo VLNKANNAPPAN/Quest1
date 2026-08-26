@@ -20,7 +20,7 @@ class PipelineConfig:
     # Audio & ASR parameters
     sample_rate: int = 16000
     default_model_size: str = "small"
-    whisper_beam_size: int = 5
+    whisper_beam_size: int = 2
     whisper_vad_filter: bool = True
     whisper_min_silence_duration_ms: int = 300
 

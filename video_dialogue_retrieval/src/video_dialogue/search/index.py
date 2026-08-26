@@ -48,18 +48,30 @@ def build_rarity_fn(transcript_words: List[str]) -> Callable[[str], float]:
     return rarity
 
 
+def choose_anchors(
+    target_words: List[str],
+    transcript_words: List[str],
+    rarity_fn: Optional[Callable[[str], float]] = None,
+) -> List[str]:
+    """Return all candidate anchor words from target query that exist in transcript, ordered by rarity (highest first)."""
+    vocab: Set[str] = set(transcript_words)
+    candidates = [w for w in target_words if w in vocab]
+    if not candidates:
+        return []
+
+    if rarity_fn is None:
+        rarity_fn = build_rarity_fn(transcript_words)
+
+    # Remove duplicates preserving order of appearance then sort by rarity descending
+    unique_candidates = list(dict.fromkeys(candidates))
+    return sorted(unique_candidates, key=rarity_fn, reverse=True)
+
+
 def choose_anchor(
     target_words: List[str],
     transcript_words: List[str],
     rarity_fn: Optional[Callable[[str], float]] = None,
 ) -> Optional[str]:
-    """Select the most informative/rare anchor word from the target query that appears in transcript."""
-    vocab: Set[str] = set(transcript_words)
-    candidates = [w for w in target_words if w in vocab]
-    if not candidates:
-        return None
-
-    if rarity_fn is None:
-        rarity_fn = build_rarity_fn(transcript_words)
-
-    return max(candidates, key=rarity_fn)
+    """Select the single most informative/rare anchor word from target query present in transcript."""
+    anchors = choose_anchors(target_words, transcript_words, rarity_fn)
+    return anchors[0] if anchors else None

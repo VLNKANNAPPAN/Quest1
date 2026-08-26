@@ -85,7 +85,7 @@ class WhisperTranscriber:
         audio_path: Union[str, Path],
         model_size: str = "small",
         force: bool = False,
-        beam_size: int = 5,
+        beam_size: int = 2,
         vad_filter: bool = True,
         min_silence_duration_ms: int = 300,
         progress_callback: Optional[Callable[[float, int, Optional[float]], None]] = None,

@@ -1,0 +1,129 @@
+1)
+INPUT -> Video URL
+i) How to access the video from the link (Downloading etc) • Are we going to store the video locally? [Any other options]
+VIDEO -> Time Series Data. ↳ Has Images (Frames) and Speech data. Frames and Speech data are mapped. Identify the mapping.
+Duration of Video -> 54:22. [54:22 of speech / soundtrack] ii) Divide the video into frames and figure out how much time each frame is. [Should Identify FPS of video] Possibility 1: Divide the video based on frames. If N Frames present get N frames of soundtrack. One to One mapping between video and audio frames.
+Assuming we are given a target dialogue, we need a way to compare the dialogues in the video. We need a mechanism to convert Speech/Audio to Text.
+Now one optimization step, we can isolate frames only with speech. We can remove frames which are empty or have music to shrink our search space.
+Then we can compare our target dialogue and our audio frames. We can do some fast Similarity Search Algo to get Similarity Score,
+Transcription of "WhatsApp Image 2026-08-24 at 1.31.19 PM.jpeg" The next problem is that a dialogue might last over multiple frames. We have to find all such frames. And another probable issue is a word say like "the" which is common might appear in multiple frames. "The" might also be in our target sentence. If we get all frames with the it will be useless.
+So, another approach is we only search for key words or rather the first key word in the targ dialogue and check if the coming frames match the targ dialogue. If it doesn't match we can prune at the start itself.
+I think if we converge on the audio frame, it easy to get timestamp, frame number and the corresponding video frame as image.
+If the time period of a video frame is too less we can combine N frames to create Buckets and analyze buckets. Buckets can have some overlap, I am not sure if it will help.
+-> We can apply TF:IDF to find unique key words. And If we find a rare word in our target sentence, we can search in the transcript we get from the speech info.
+
+This is my initial idea for the problem statement, I want to ways to optimally store the video , optimally retrieve the frames and convert speech to text Rate my approach and suggest changes
+
+Note on screen dialogue here only means the audio and doesn't imply text on screen
+
+Summary : I gave my initial ideas and told claude to optimize the solution and make it better
+
+2)
+Let's breakdown the process into smaller steps , step 1 is downloading videos from any link and deciding how we are going to store the video
+step 2 is getting the audio from the video 
+step 3 is preprocessing of the audio , only separating the parts of the audio with speech
+step 4 is converting speech to text (whisper models, can analyze multiple different models)
+step 5 is efficiently searching for the target dialogue in the transcript
+step 6 is mapping the found part with the correct frame and retrieving
+step 7 is getting all the information we have into a structured outputs
+
+It is better if we have all these as separate modules that we can test separately and work independently (atleast till step 5)
+
+What do you think of the approach , give any suggestions if you have
+
+3)
+let's start with step 1
+
+4) It is better to go with individual python files or a python notebook, just give  a short explanation , coz i thought of python notebook after seeing the problem statement
+
+Summary Point --> Since I don't have a GPU , I thought using Kaggle's t4 GPU will be better , so first planned on creating a jupyter notebook and checking the full worrkflow
+
+5)
+let's begin with phase 1
+Let's move on to step 2
+we can move to the next step
+Let's start with ASR
+i think we can move to the next phase, or should we deal with the overlap issue
+ok give me the code for the new method of stroing the starting and ending timestamps to deal with overlaps , then after that we can move to step 5
+let's go one to step 5
+transcript is availble till the 52nd minute , i think there is no speech post that, now let's move onto the next step
+Matches: [3]
+{'start': np.float64(117.448), 'end': np.float64(118.588)}
+
+this is the output 
+what is the next step , can we try multiple search methods like the tf-idf now
+Target words and rarity: close frequency= 4 rarity=6.6943 the frequency= 151 rarity=3.2799 window frequency= 2 rarity=7.2051 john frequency= 2 rarity=7.2051 Selected anchor: window Anchor occurrences: 2 First positions: [5, 2987]
+
+6)
+This is the notebook where i have executed all the code, it has some issues, some updates are not reflected and some parts are redundant, remove unwanted parts, make it the final updated version and add time based testing for all the three methods to compare how much time each method takes
+
+7)
+WARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x785d37f6fb90>: Failed to establish a new connection: [Errno -3] Temporary failure in name resolution')': /simple/yt-dlp/ WARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x785d37fa9a30>: Failed to establish a new connection: [Errno -3] Temporary failure in name resolution')': /simple/yt-dlp/ WARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x785d37cf9880>: Failed to establish a new connection: [Errno -3] Temporary failure in name resolution')': /simple/yt-dlp/ WARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<pip._vendor.urllib3.connection.HTTPSConnection object at 0x785d37cf9250>: Failed to establish a new connection: [Errno -3] Temporary failure in name resolution')': /simple/yt-dlp/ make changes to run on kaggle and give me the final notebook
+
+8)
+Target: close the window john Exact: [{'start': 117.448, 'end': 118.588, 'score': 1.0, 'method': 'exact', 'start_index': 3, 'end_index': 7}] Fuzzy: [{'start': 117.448, 'end': 118.588, 'score': 1.0, 'method': 'fuzzy_sliding_window', 'start_index': 3, 'end_index': 7}, {'start': 117.448, 'end': 138.284, 'score': 0.9333333333333333, 'method': 'fuzzy_sliding_window', 'start_index': 3, 'end_index': 8}, {'start': 108.188, 'end': 118.588, 'score': 0.8936170212765957, 'method': 'fuzzy_sliding_window', 'start_index': 2, 'end_index': 7}] Rare-anchor + fuzzy: [{'start': 117.448, 'end': 118.588, 'score': 1.0, 'method': 'rare_anchor_fuzzy', 'start_index': 3, 'end_index': 7, 'anchor': 'window'}, {'start': 2454.556, 'end': 2459.852, 'score': 0.7058823529411765, 'method': 'rare_anchor_fuzzy', 'start_index': 2985, 'end_index': 2988, 'anchor': 'window'}] TEST TARGET: close the window jon Exact: [] Best fuzzy: [{'start': 117.448, 'end': 118.588, 'score': 0.975609756097561, 'method': 'fuzzy_sliding_window', 'start_index': 3, 'end_index': 7}] Best rare-anchor: []
+
+9)
+--------------------------------------------------------------------------- TypeError Traceback (most recent call last) /tmp/ipykernel_58/1507164779.py in <cell line: 0>() 18 ) 19 ---> 20 anchor_error_results = rare_anchor_fuzzy_search( 21 transcript_words, 22 test_words /tmp/ipykernel_58/3141152182.py in rare_anchor_fuzzy_search(transcript_words, target_words) 117 ] 118 --> 119 candidates = generate_candidate_windows( 120 transcript_words, 121 target_words, /tmp/ipykernel_58/3141152182.py in generate_candidate_windows(transcript_words, target_words, anchor, extra_context) 51 expected_start = anchor_index - anchor_offset 52 ---> 53 start = max(0, expected_start - extra_context) 54 end = min( 55 len(transcript_words), TypeError: unsupported operand type(s) for -: 'int' and 'list'
+
+10)
+TEST TARGET:
+close the window jon
+
+Target words:
+['close', 'the', 'window', 'jon']
+
+Selected anchor:
+window
+
+Anchor positions:
+[5, 2986]
+
+Exact:
+[]
+
+Rare-anchor + fuzzy:
+
+---------------------------------------------------------------------------
+NameError                                 Traceback (most recent call last)
+/tmp/ipykernel_58/1988683468.py in <cell line: 0>()
+     40 print("\nRare-anchor + fuzzy:")
+     41 
+---> 42 anchor_results = rare_anchor_fuzzy_search(
+     43     transcript_words,
+     44     test_words
+
+/tmp/ipykernel_58/75114176.py in rare_anchor_fuzzy_search(transcript_words, target_words)
+    195     for candidate in candidates:
+    196 
+--> 197         result = fuzzy_match_candidate(
+    198             transcript_words,
+    199             target_words,
+
+/tmp/ipykernel_58/75114176.py in fuzzy_match_candidate(transcript_words, target_words, candidate)
+    116             ]
+    117 
+--> 118             score = text_similarity(
+    119                 " ".join(target_words),
+    120                 " ".join(window)
+
+NameError: name 'text_similarity' is not defined
+
+11)
+give me a function to give the video url and target dialogue as parameteres and to get the structured output
+
+12)
+Is there a faster search method, or other methods to find the target words, if yes can we do a comparitive analysis
+
+CODING AGENT
+13)
+go through the ipynb and make create a folder an in that create this a modular industry standard project with separate python files wherever required
+
+14)i should be able to give a link and a target dialougue in the terminal and the project should check for the dialogue in that video
+I should also be able to see the video download progress and the asr progress , overall progress of the workflow also in the terminal as a user 
+Make these changes and do a test run
+
+15)
+how can i make the whole system better, are there any edge cases that i can handle or any other features i can add, or any other methods to reduce redundancy and increase speed
+
+16)

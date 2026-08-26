@@ -4,7 +4,7 @@ import logging
 from typing import List, Dict, Any, Optional, Callable, Union
 
 from ..core.models import SearchResultItem
-from .index import InvertedIndex, build_rarity_fn, choose_anchor
+from .index import InvertedIndex, build_rarity_fn, choose_anchor, choose_anchors
 from .scorers import get_score_fn, difflib_score
 
 logger = logging.getLogger(__name__)
@@ -77,11 +77,11 @@ def rare_anchor_fuzzy_search(
     length_tolerance: int = 2,
     inverted_index: Optional[Union[InvertedIndex, Dict[str, List[int]]]] = None,
 ) -> List[SearchResultItem]:
-    """Optimized fuzzy search anchored on the rarest word in target query.
+    """Optimized fuzzy search anchored on rare words with multi-anchor retry and sliding window fallback.
 
-    Selects the rarest token in target_words (using per-call IDF rarity),
-    locates all occurrences of that anchor, and evaluates candidate windows only in the
-    neighborhood around each anchor occurrence.
+    Iterates candidate anchor tokens ordered from rarest to common. If the top anchor yields
+    no strong match (or is absent from the transcript due to ASR misspelling), it automatically
+    retries with the next rarest anchor words before falling back to full sliding window search.
     """
     if score_fn is None:
         score_fn = difflib_score
@@ -90,50 +90,77 @@ def rare_anchor_fuzzy_search(
         return []
 
     rarity_fn = build_rarity_fn(transcript_words)
-    anchor = choose_anchor(target_words, transcript_words, rarity_fn)
-    if anchor is None:
-        return []
+    candidate_anchors = choose_anchors(target_words, transcript_words, rarity_fn)
 
-    anchor_offset = target_words.index(anchor)
+    if not candidate_anchors:
+        logger.info("No query anchor survived ASR; falling back to exhaustive fuzzy search.")
+        results = fuzzy_sliding_window_search(
+            transcript_words, target_words, score_fn=score_fn,
+            length_tolerance=length_tolerance,
+        )
+        for result in results:
+            result.method = "rare_anchor_fuzzy_fallback"
+        return results
+
+    all_anchor_results: List[SearchResultItem] = []
     n = len(target_words)
 
-    if inverted_index is not None:
-        if isinstance(inverted_index, InvertedIndex):
-            anchor_positions = inverted_index.get(anchor)
+    for anchor in candidate_anchors:
+        anchor_offset = target_words.index(anchor)
+        if inverted_index is not None:
+            if isinstance(inverted_index, InvertedIndex):
+                anchor_positions = inverted_index.get(anchor)
+            else:
+                anchor_positions = inverted_index.get(anchor, [])
         else:
-            anchor_positions = inverted_index.get(anchor, [])
-    else:
-        anchor_positions = [i for i, w in enumerate(transcript_words) if w == anchor]
+            anchor_positions = [i for i, w in enumerate(transcript_words) if w == anchor]
 
-    results: List[SearchResultItem] = []
-    for anchor_index in anchor_positions:
-        expected_start = anchor_index - anchor_offset
-        start = max(0, expected_start - extra_context)
-        end = min(len(transcript_words), expected_start + n + extra_context)
-        region = transcript_words[start:end]
+        anchor_results: List[SearchResultItem] = []
+        for anchor_index in anchor_positions:
+            expected_start = anchor_index - anchor_offset
+            start = max(0, expected_start - extra_context)
+            end = min(len(transcript_words), expected_start + n + extra_context)
+            region = transcript_words[start:end]
 
-        lo = max(1, n - length_tolerance)
-        hi = n + length_tolerance
-        best: Optional[SearchResultItem] = None
+            lo = max(1, n - length_tolerance)
+            hi = n + length_tolerance
+            best: Optional[SearchResultItem] = None
 
-        for wlen in range(lo, hi + 1):
-            if wlen > len(region):
-                continue
-            for i in range(len(region) - wlen + 1):
-                window = region[i : i + wlen]
-                score = float(score_fn(target_words, window))
-                if best is None or score > best.score:
-                    best = SearchResultItem(
-                        start_index=start + i,
-                        end_index=start + i + wlen,
-                        score=score,
-                        method="rare_anchor_fuzzy",
-                        anchor=anchor,
-                    )
-        if best is not None:
-            results.append(best)
+            for wlen in range(lo, hi + 1):
+                if wlen > len(region):
+                    continue
+                for i in range(len(region) - wlen + 1):
+                    window = region[i : i + wlen]
+                    score = float(score_fn(target_words, window))
+                    if best is None or score > best.score:
+                        best = SearchResultItem(
+                            start_index=start + i,
+                            end_index=start + i + wlen,
+                            score=score,
+                            method="rare_anchor_fuzzy",
+                            anchor=anchor,
+                        )
+            if best is not None:
+                anchor_results.append(best)
 
-    results.sort(key=lambda r: r.score, reverse=True)
+        anchor_results.sort(key=lambda r: r.score, reverse=True)
+        if anchor_results and anchor_results[0].score >= 0.70:
+            return anchor_results
+
+        all_anchor_results.extend(anchor_results)
+
+    if all_anchor_results:
+        all_anchor_results.sort(key=lambda r: r.score, reverse=True)
+        return all_anchor_results
+
+    # Exhaustive fallback
+    logger.info("All candidate anchors produced low scores; falling back to exhaustive fuzzy search.")
+    results = fuzzy_sliding_window_search(
+        transcript_words, target_words, score_fn=score_fn,
+        length_tolerance=length_tolerance,
+    )
+    for result in results:
+        result.method = "rare_anchor_fuzzy_fallback"
     return results
 
 
