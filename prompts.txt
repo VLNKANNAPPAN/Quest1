@@ -219,4 +219,181 @@ I will also uplaod the inital ideas images and the python notebooks and the curr
 Anchor word literally absent from transcript — currently choose_anchor returns None and rare_anchor_fuzzy_search returns [] — a hard failure, even if the phrase is almost there via ASR misspelling of just that one word. Worth a fallback: if the top-ranked anchor yields nothing, retry with the second-rarest word before giving up, or fall back to fuzzy_sliding_window_search automatically. download the video is lower resolution to make the download faster check the video duration of the input video and the video in the sql, so that even if chromaprint matches we don't use a trimmed video with a different amount of frames 
 
 these are the next set of changes i did , add this also to the word file
+3)
 
+ow auto_search Works (Behind the Scenes)
+
+The user now just provides a URL + target dialogue — the system automatically picks the best search strategy using a 3-stage cascade:
+
+Stage 1: Exact Phrase Match    →  Instant, score = 1.0  →  Found? Return immediately.
+
+         ↓ (not found)
+
+Stage 2: Rare-Anchor + RapidFuzz  →  Fast bounded search  →  Score ≥ 0.85? Return.
+
+         ↓ (low confidence)
+
+Stage 3: Full Sliding Window + RapidFuzz  →  Exhaustive  →  Return best merged results.
+
+
+
+tell that auto method choosing was added, 
+
+
+
+Two Bugs Found & Fixed
+
+Bug 1: Frame 39 at 531 seconds — Wrong FPS
+
+
+
+
+
+Root cause: _metadata_from_info() in
+
+downloader.py was picking up the audio stream's fake FPS (0.074) instead of the real video FPS (~24). Since yt-dlp downloads audio-only first, the info dict's top-level fps field came from the audio format.
+
+
+
+Fix: Added a fps >= 1.0 sanity check and now only considers formats where vcodec != "none" when scanning for FPS. Anything below 1.0 fps is rejected as an audio artefact.
+
+
+
+Impact: 531.58s × 0.074 fps = frame 39 ❌ → 531.58s × 24 fps = frame 12,758 ✅
+
+
+
+Action needed: I deleted the stale pipeline.db cache so the video will be re-indexed with the correct FPS on next run.
+
+these are the changes done , update this also in the word doc
+
+
+
+
+Bug fixes:
+C:\Users\computer\Desktop\Quest1\video_dialogue_retrieval>.\.venv\Scripts\python.exe run.py search --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" --query "I freaking love geography" --model-size tiny
+
+[SEARCH] Searching dialogue in: https://www.youtube.com/watch?v=W_s81Dn4uEI
+  Target query : "I freaking love geography"
+  Method       : rare_anchor_fuzzy (score_fn=difflib)
+  ASR Model    : tiny
+
+[PROGRESS] Overall   0% | Step 1/5: Acquiring the audio track.
+[download]   0.0% of   10.52MiB at  185.02KiB/s ETA 00:58[PROGRESS] Downloading audio:   0.0% | 0.2 MiB/s | ETA 58s
+[download]   9.5% of   10.52MiB at   17.20MiB/s ETA 00:00[PROGRESS] Downloading audio:   9.5% | 17.2 MiB/s | ETA 0s
+[download]  19.0% of   10.52MiB at   20.50MiB/s ETA 00:00[PROGRESS] Downloading audio:  19.0% | 20.5 MiB/s | ETA 0s
+[download]  38.0% of   10.52MiB at   22.67MiB/s ETA 00:00[PROGRESS] Downloading audio:  38.0% | 22.7 MiB/s | ETA 0s
+[download]  76.0% of   10.52MiB at   16.05MiB/s ETA 00:00[PROGRESS] Downloading audio:  76.0% | 16.1 MiB/s | ETA 0s
+[download]  93.0% of   10.52MiB at   15.23MiB/s ETA 00:00[PROGRESS] Downloading audio:  93.0% | 15.2 MiB/s | ETA 0s
+[download]  98.7% of   10.52MiB at  576.76KiB/s ETA 00:00[PROGRESS] Downloading audio:  98.7% | 0.6 MiB/s | ETA 0s
+[download] 100.0% of   10.52MiB at  698.92KiB/s ETA 00:00[PROGRESS] Downloading audio: 100.0% | 0.7 MiB/s | ETA 0s
+[download] 100% of   10.52MiB in 00:00:01 at 5.53MiB/s[PROGRESS] Download complete (audio); preparing next step.
+[PROGRESS] Overall  20% | Step 2/5: Computing audio fingerprint.
+[PROGRESS] Overall  40% | Step 3/5: Starting ASR with the 'tiny' Whisper model.
+[22:20:26] INFO [video_dialogue.asr.transcriber] Loading Whisper model 'tiny' (from C:\Users\computer\Desktop\Quest1\video_dialogue_retrieval\cache\models\tiny) on cpu (int8)...
+[22:20:27] INFO [video_dialogue.asr.transcriber] Transcribing e62fe991ec4f0366.wav with model 'tiny'...
+[22:20:27] INFO [faster_whisper] Processing audio with duration 22:29.440
+[22:20:33] INFO [faster_whisper] VAD filter removed 02:41.440 of audio
+[22:20:34] INFO [faster_whisper] Detected language 'en' with probability 0.99
+[PROGRESS] ASR:   0.4% (5.9s / 1349.0s; 1 segments)
+[PROGRESS] ASR:   1.7% (22.3s / 1349.0s; 5 segments)
+[PROGRESS] ASR:   2.8% (37.7s / 1349.0s; 10 segments)
+[PROGRESS] ASR:   4.2% (57.1s / 1349.0s; 14 segments)
+[PROGRESS] ASR:   6.5% (87.6s / 1349.0s; 16 segments)
+[PROGRESS] ASR:   7.7% (103.2s / 1349.0s; 23 segments)
+[PROGRESS] ASR:   9.0% (121.9s / 1349.0s; 33 segments)
+[PROGRESS] ASR:  10.2% (138.1s / 1349.0s; 38 segments)
+[PROGRESS] ASR:  11.7% (157.4s / 1349.0s; 43 segments)
+[PROGRESS] ASR:  13.0% (175.5s / 1349.0s; 49 segments)
+[PROGRESS] ASR:  14.3% (192.8s / 1349.0s; 54 segments)
+[PROGRESS] ASR:  15.5% (209.8s / 1349.0s; 57 segments)
+[PROGRESS] ASR:  16.7% (225.7s / 1349.0s; 61 segments)
+[PROGRESS] ASR:  18.3% (246.6s / 1349.0s; 62 segments)
+[PROGRESS] ASR:  19.5% (263.6s / 1349.0s; 65 segments)
+[PROGRESS] ASR:  20.9% (281.5s / 1349.0s; 67 segments)
+[PROGRESS] ASR:  22.3% (300.2s / 1349.0s; 70 segments)
+[PROGRESS] ASR:  23.6% (319.0s / 1349.0s; 73 segments)
+[PROGRESS] ASR:  25.0% (336.7s / 1349.0s; 76 segments)
+[PROGRESS] ASR:  26.4% (356.0s / 1349.0s; 80 segments)
+[PROGRESS] ASR:  27.6% (372.5s / 1349.0s; 87 segments)
+[PROGRESS] ASR:  29.3% (394.7s / 1349.0s; 91 segments)
+[PROGRESS] ASR:  30.4% (410.5s / 1349.0s; 95 segments)
+[PROGRESS] ASR:  31.6% (426.7s / 1349.0s; 102 segments)
+[PROGRESS] ASR:  33.2% (447.5s / 1349.0s; 103 segments)
+[PROGRESS] ASR:  34.4% (463.6s / 1349.0s; 113 segments)
+[PROGRESS] ASR:  35.5% (479.3s / 1349.0s; 120 segments)
+[PROGRESS] ASR:  36.7% (495.1s / 1349.0s; 124 segments)
+[PROGRESS] ASR:  38.1% (514.0s / 1349.0s; 136 segments)
+[PROGRESS] ASR:  39.3% (530.8s / 1349.0s; 150 segments)
+[PROGRESS] ASR:  40.5% (546.8s / 1349.0s; 159 segments)
+[PROGRESS] ASR:  41.7% (562.6s / 1349.0s; 165 segments)
+[PROGRESS] ASR:  43.4% (585.1s / 1349.0s; 168 segments)
+[PROGRESS] ASR:  44.5% (600.1s / 1349.0s; 171 segments)
+[PROGRESS] ASR:  45.7% (616.8s / 1349.0s; 173 segments)
+[PROGRESS] ASR:  47.1% (635.6s / 1349.0s; 177 segments)
+[PROGRESS] ASR:  48.5% (654.1s / 1349.0s; 180 segments)
+[PROGRESS] ASR:  51.9% (700.5s / 1349.0s; 184 segments)
+[PROGRESS] ASR:  53.3% (718.7s / 1349.0s; 188 segments)
+[PROGRESS] ASR:  55.4% (747.2s / 1349.0s; 192 segments)
+[PROGRESS] ASR:  56.6% (763.6s / 1349.0s; 201 segments)
+[PROGRESS] ASR:  58.8% (792.8s / 1349.0s; 209 segments)
+[PROGRESS] ASR:  60.0% (809.0s / 1349.0s; 214 segments)
+[PROGRESS] ASR:  61.2% (825.6s / 1349.0s; 223 segments)
+[PROGRESS] ASR:  62.4% (841.5s / 1349.0s; 236 segments)
+[PROGRESS] ASR:  63.6% (857.5s / 1349.0s; 243 segments)
+[PROGRESS] ASR:  64.8% (874.5s / 1349.0s; 253 segments)
+[PROGRESS] ASR:  66.0% (890.0s / 1349.0s; 259 segments)
+[PROGRESS] ASR:  67.1% (905.2s / 1349.0s; 264 segments)
+[PROGRESS] ASR:  68.7% (927.1s / 1349.0s; 270 segments)
+[PROGRESS] ASR:  69.9% (942.3s / 1349.0s; 276 segments)
+[PROGRESS] ASR:  71.0% (957.9s / 1349.0s; 281 segments)
+[PROGRESS] ASR:  72.2% (974.2s / 1349.0s; 289 segments)
+[PROGRESS] ASR:  73.4% (989.7s / 1349.0s; 296 segments)
+[PROGRESS] ASR:  74.6% (1006.5s / 1349.0s; 303 segments)
+[PROGRESS] ASR:  75.8% (1022.7s / 1349.0s; 312 segments)
+[PROGRESS] ASR:  77.0% (1038.8s / 1349.0s; 320 segments)
+[PROGRESS] ASR:  78.1% (1054.2s / 1349.0s; 331 segments)
+[PROGRESS] ASR:  79.4% (1071.5s / 1349.0s; 344 segments)
+[PROGRESS] ASR:  80.9% (1091.2s / 1349.0s; 354 segments)
+[PROGRESS] ASR:  84.3% (1137.0s / 1349.0s; 358 segments)
+[PROGRESS] ASR:  85.5% (1153.8s / 1349.0s; 362 segments)
+[PROGRESS] ASR:  87.2% (1177.0s / 1349.0s; 367 segments)
+[PROGRESS] ASR:  88.5% (1193.4s / 1349.0s; 375 segments)
+[PROGRESS] ASR:  90.0% (1213.6s / 1349.0s; 382 segments)
+[PROGRESS] ASR:  91.2% (1229.7s / 1349.0s; 391 segments)
+[PROGRESS] ASR:  92.5% (1248.2s / 1349.0s; 397 segments)
+[PROGRESS] ASR:  93.7% (1263.5s / 1349.0s; 402 segments)
+[PROGRESS] ASR:  94.9% (1280.2s / 1349.0s; 408 segments)
+[PROGRESS] ASR:  96.1% (1296.8s / 1349.0s; 412 segments)
+[PROGRESS] ASR:  97.4% (1313.8s / 1349.0s; 417 segments)
+[PROGRESS] ASR:  98.7% (1330.9s / 1349.0s; 421 segments)
+[PROGRESS] Overall  60% | Step 4/5: Searching 3285 transcribed words.
+[PROGRESS] Overall  80% | Step 5/5: Match found; acquiring video for frame extraction.
+[download]   0.0% of   61.36MiB at  494.96KiB/s ETA 02:08[PROGRESS] Downloading video:   0.0% | 0.5 MiB/s | ETA 128s
+[download]   6.5% of   61.36MiB at    8.11MiB/s ETA 00:07[PROGRESS] Downloading video:   6.5% | 8.1 MiB/s | ETA 7s
+[download]  13.0% of   61.36MiB at    9.07MiB/s ETA 00:05[PROGRESS] Downloading video:  13.0% | 9.1 MiB/s | ETA 5s
+[download]  19.5% of   61.36MiB at    6.74MiB/s ETA 00:07[PROGRESS] Downloading video:  19.5% | 6.7 MiB/s | ETA 7s
+[download]  29.2% of   61.36MiB at    6.80MiB/s ETA 00:06[PROGRESS] Downloading video:  29.2% | 6.8 MiB/s | ETA 6s
+[download]  35.2% of   61.36MiB at    5.77MiB/s ETA 00:06[PROGRESS] Downloading video:  35.2% | 5.8 MiB/s | ETA 6s
+[download]  45.0% of   61.36MiB at    6.81MiB/s ETA 00:04[PROGRESS] Downloading video:  45.0% | 6.8 MiB/s | ETA 4s
+[download]  51.1% of   61.36MiB at   20.83MiB/s ETA 00:01[PROGRESS] Downloading video:  51.1% | 20.8 MiB/s | ETA 1s
+[download]  60.9% of   61.36MiB at   21.74MiB/s ETA 00:01[PROGRESS] Downloading video:  60.9% | 21.7 MiB/s | ETA 1s
+[download]  66.9% of   61.36MiB at   20.17MiB/s ETA 00:01[PROGRESS] Downloading video:  66.9% | 20.2 MiB/s | ETA 1s
+[download]  76.7% of   61.36MiB at   19.09MiB/s ETA 00:00[PROGRESS] Downloading video:  76.7% | 19.1 MiB/s | ETA 0s
+[download]  83.1% of   61.36MiB at   10.89MiB/s ETA 00:00[PROGRESS] Downloading video:  83.1% | 10.9 MiB/s | ETA 0s
+[download]  92.8% of   61.36MiB at   11.36MiB/s ETA 00:00[PROGRESS] Downloading video:  92.8% | 11.4 MiB/s | ETA 0s
+[download]  98.8% of   61.36MiB at   10.86MiB/s ETA 00:00[PROGRESS] Downloading video:  98.8% | 10.9 MiB/s | ETA 0s
+[download] 100.0% of   61.36MiB at   11.94MiB/s ETA 00:00[PROGRESS] Downloading video: 100.0% | 11.9 MiB/s | ETA 0s
+[download] 100% of   61.36MiB in 00:00:07 at 8.55MiB/s[PROGRESS] Download complete (video); preparing next step.
+[download] 100.0% of   20.49MiB at   11.77MiB/s ETA 00:00[PROGRESS] Downloading video: 100.0% | 11.8 MiB/s | ETA 0s
+[download] 100% of   20.49MiB in 00:00:01 at 12.56MiB/s[PROGRESS] Download complete (video); preparing next step.
+[PROGRESS] Overall 100% | Finished in 104.3s; saved report to C:\Users\computer\Desktop\Quest1\video_dialogue_retrieval\cache\results\e62fe991ec4f0366_tiny_result.json.
+[MATCH] Match found!
+
+|   Rank | Timestamp         |   Frame |   Score | Matched Text                 | Frame Image                   |
+|--------|-------------------|---------|---------|------------------------------|-------------------------------|
+|      1 | 531.58s - 533.32s |      39 |   0.784 | I freaking loved Yaga. Yeah. | e62fe991ec4f0366_frame_39.jpg |
+
+Saved report to: C:\Users\computer\Desktop\Quest1\video_dialogue_retrieval\cache\results\e62fe991ec4f0366_tiny_result.json
+
+how is 531 seconds , just the 39th frame check, this is in the quest1_pulled directory
