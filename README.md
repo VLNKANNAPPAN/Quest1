@@ -101,18 +101,28 @@ if result.best_match:
 ```
 
 ### Command-Line Interface (CLI)
+
+Navigate into the `video_dialogue_retrieval` folder:
 ```bash
-# Search for dialogue in a YouTube video or local MP4
-python -m video_dialogue.cli search "https://www.youtube.com/watch?v=W_s81Dn4uEI" "I freaking love geography" --model small
+cd video_dialogue_retrieval
+```
+
+Then run with your Python interpreter:
+```bash
+# Simplest command — the system automatically cascades through search methods
+python run.py search --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" --query "I freaking love geography"
+
+# Or with custom Whisper model size (tiny, base, small, medium, large-v3)
+python run.py search --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" --query "I freaking love geography" --model-size tiny
 
 # Run comparative algorithm benchmark
-python -m video_dialogue.cli benchmark
+python run.py benchmark
 
 # Inspect SQLite media database & cached transcripts
-python -m video_dialogue.cli inspect
+python run.py inspect
 
-# Clear cached files and transcripts
-python -m video_dialogue.cli clear-cache --all
+# Clear cached database entries
+python run.py clear-cache
 ```
 
 ---

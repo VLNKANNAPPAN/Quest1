@@ -164,12 +164,16 @@ The package provides the `video-dialogue` command-line executable:
 
 ### 1. Search Dialogue
 ```bash
-python -m video_dialogue.cli search \
-  --video "https://ok.ru/video/248244667877" \
-  --query "My mind rebels at stagnation" \
-  --method rare_anchor_fuzzy \
-  --score-fn rapidfuzz \
-  --model-size small
+# Simplest command (auto strategy selection):
+python run.py search \
+  --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" \
+  --query "I freaking love geography"
+
+# Or with custom options:
+python run.py search \
+  --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" \
+  --query "I freaking love geography" \
+  --model-size tiny
 ```
 
 The terminal reports each stage, download percentage and speed, then ASR progress as
