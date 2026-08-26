@@ -265,8 +265,8 @@ class DialogueRetrievalPipeline:
 def find_dialogue(
     video_url: str,
     target_dialogue: str,
-    method: str = "rare_anchor_fuzzy",
-    score_fn_name: str = "difflib",
+    method: str = "auto",
+    score_fn_name: str = "rapidfuzz",
     model_size: str = "small",
     top_k: int = 5,
     use_inverted_index: bool = True,

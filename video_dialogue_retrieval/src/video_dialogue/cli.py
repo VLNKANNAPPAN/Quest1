@@ -139,14 +139,14 @@ def main(argv: Optional[List[str]] = None) -> None:
     search_parser.add_argument("-i", "--video", required=True, help="URL or local path to video file")
     search_parser.add_argument("-q", "--query", required=True, help="Target dialogue phrase")
     search_parser.add_argument(
-        "-m", "--method", default="rare_anchor_fuzzy",
-        choices=["rare_anchor_fuzzy", "fuzzy", "exact"],
-        help="Search retrieval algorithm (default: rare_anchor_fuzzy)",
+        "-m", "--method", default="auto",
+        choices=["auto", "rare_anchor_fuzzy", "fuzzy", "exact"],
+        help="Search retrieval algorithm (default: auto — cascades exact -> rare-anchor -> sliding window)",
     )
     search_parser.add_argument(
-        "-s", "--score-fn", default="difflib",
-        choices=["difflib", "rapidfuzz", "embedding"],
-        help="Similarity score function (default: difflib)",
+        "-s", "--score-fn", default="rapidfuzz",
+        choices=["rapidfuzz", "difflib", "embedding"],
+        help="Similarity score function (default: rapidfuzz)",
     )
     search_parser.add_argument(
         "--model-size", default="small",

@@ -36,12 +36,22 @@ def _with_network_retries(operation: Callable[[], Any], description: str) -> Any
 
 
 def _metadata_from_info(info: Dict[str, Any]) -> VideoMetadata:
-    """Convert yt-dlp's already-fetched info dictionary to project metadata."""
+    """Convert yt-dlp's already-fetched info dictionary to project metadata.
+
+    FPS is extracted only from video stream formats (vcodec != 'none') to avoid
+    picking up meaningless audio-stream frame rates (e.g. 0.07 fps).
+    """
     fps = info.get("fps")
-    if not fps:
+    # Validate: a real video FPS should be >= 1.0; anything below is an audio
+    # stream artefact or placeholder value.
+    if not fps or fps < 1.0:
+        fps = None
         for fmt in info.get("formats", []):
-            if fmt.get("fps"):
-                fps = fmt["fps"]
+            vcodec = fmt.get("vcodec", "none")
+            fmt_fps = fmt.get("fps")
+            # Only consider actual video streams with sensible FPS values
+            if vcodec not in (None, "none") and fmt_fps and fmt_fps >= 1.0:
+                fps = fmt_fps
                 break
     return VideoMetadata(
         duration=float(info.get("duration") or 0.0),
