@@ -98,12 +98,23 @@ video_dialogue_retrieval/
 - **Python**: 3.9+
 - **FFmpeg**: Required for audio conversion and frame extraction (`ffmpeg` and `ffprobe` in PATH).
 
-### 2. Install Package
+### 2. Virtual Environment & Dependencies
+
+Creating an isolated virtual environment is recommended to avoid package conflicts:
+
 ```bash
-# Clone or navigate to the directory
+# Navigate to the package directory
 cd video_dialogue_retrieval
 
-# Install core package
+# Create virtual environment
+python -m venv .venv
+
+# Activate on Windows (Command Prompt / PowerShell):
+.\.venv\Scripts\activate
+# (Or on Linux / macOS: source .venv/bin/activate)
+
+# Install production dependencies
+pip install -r requirements.txt
 pip install -e .
 
 # (Optional) Install development and embedding dependencies

@@ -3,9 +3,17 @@
 import argparse
 import json
 import logging
+import os
 import sys
+import warnings
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+
+# Silence noisy external library warnings (TensorFlow oneDNN, optree, etc.)
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
 
 from tabulate import tabulate
 

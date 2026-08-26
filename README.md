@@ -69,9 +69,22 @@ Quest1/
 - **Python**: 3.9+ (tested on Python 3.11 and 3.12)
 - **FFmpeg**: Required for audio conversion and frame extraction (`ffmpeg` and `ffprobe` in PATH).
 
-### 2. Install Dependencies
+### 2. Virtual Environment & Dependencies
+
+Creating an isolated virtual environment is recommended to avoid package conflicts:
+
 ```bash
+# Navigate to the package directory
 cd video_dialogue_retrieval
+
+# Create virtual environment
+python -m venv .venv
+
+# Activate on Windows (Command Prompt / PowerShell):
+.\.venv\Scripts\activate
+# (Or on Linux / macOS: source .venv/bin/activate)
+
+# Install production dependencies
 pip install -r requirements.txt
 pip install -e .
 ```
