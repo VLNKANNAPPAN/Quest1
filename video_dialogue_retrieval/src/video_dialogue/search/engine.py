@@ -164,17 +164,106 @@ def rare_anchor_fuzzy_search(
     return results
 
 
+def auto_search(
+    transcript_words: List[str],
+    target_words: List[str],
+    inverted_index: Optional[Union[InvertedIndex, Dict[str, List[int]]]] = None,
+    length_tolerance: int = 2,
+    extra_context: int = 2,
+    high_confidence_threshold: float = 0.85,
+) -> List[SearchResultItem]:
+    """Automatic cascading search strategy that selects the best method without user intervention.
+
+    The cascade logic:
+    1. Try **exact phrase match** first (O(N), instant). If found, return immediately with score 1.0.
+    2. Try **rare-anchor fuzzy search with RapidFuzz** (fastest fuzzy method, bounded by anchor
+       neighborhoods). If the best match scores >= high_confidence_threshold, return it.
+    3. Fall back to **full fuzzy sliding window with RapidFuzz** (exhaustive but catches all edge
+       cases where anchor selection fails or ASR heavily garbles the rare words).
+
+    This gives the user the best result without requiring any algorithm knowledge.
+    """
+    if not target_words or not transcript_words:
+        return []
+
+    # Stage 1: Exact match (instant, highest confidence)
+    exact_results = exact_phrase_search(transcript_words, target_words)
+    if exact_results:
+        logger.info("Auto-search: Exact match found (score=1.0). Returning immediately.")
+        for r in exact_results:
+            r.method = "auto:exact"
+        return exact_results
+
+    # Stage 2: Rare-anchor fuzzy with RapidFuzz (fast, bounded search)
+    rapidfuzz_score_fn = get_score_fn("rapidfuzz")
+    anchor_results = rare_anchor_fuzzy_search(
+        transcript_words,
+        target_words,
+        score_fn=rapidfuzz_score_fn,
+        extra_context=extra_context,
+        length_tolerance=length_tolerance,
+        inverted_index=inverted_index,
+    )
+    if anchor_results and anchor_results[0].score >= high_confidence_threshold:
+        logger.info(
+            "Auto-search: Rare-anchor fuzzy match (score=%.3f >= %.2f threshold). Returning.",
+            anchor_results[0].score, high_confidence_threshold,
+        )
+        for r in anchor_results:
+            r.method = f"auto:{r.method}"
+        return anchor_results
+
+    # Stage 3: Exhaustive fuzzy sliding window (catches everything the anchor missed)
+    logger.info(
+        "Auto-search: Anchor best=%.3f < %.2f threshold; escalating to exhaustive sliding window.",
+        anchor_results[0].score if anchor_results else 0.0, high_confidence_threshold,
+    )
+    sliding_results = fuzzy_sliding_window_search(
+        transcript_words,
+        target_words,
+        score_fn=rapidfuzz_score_fn,
+        length_tolerance=length_tolerance,
+    )
+    for r in sliding_results:
+        r.method = f"auto:{r.method}"
+
+    # Merge: keep the best from both stages, deduplicated by (start_index, end_index)
+    seen = set()
+    merged: List[SearchResultItem] = []
+    for r in sorted(anchor_results + sliding_results, key=lambda x: x.score, reverse=True):
+        key = (r.start_index, r.end_index)
+        if key not in seen:
+            seen.add(key)
+            merged.append(r)
+
+    return merged
+
+
 def search_dialogue(
     transcript_words: List[str],
     target_words: List[str],
-    method: str = "rare_anchor_fuzzy",
-    score_fn_name: str = "difflib",
+    method: str = "auto",
+    score_fn_name: str = "rapidfuzz",
     inverted_index: Optional[Union[InvertedIndex, Dict[str, List[int]]]] = None,
     length_tolerance: int = 2,
     extra_context: int = 2,
 ) -> List[SearchResultItem]:
-    """Unified entrypoint for dialogue retrieval algorithms."""
+    """Unified entrypoint for dialogue retrieval algorithms.
+
+    When method='auto' (default), the system automatically cascades through
+    exact -> rare-anchor fuzzy -> sliding window, picking the best strategy.
+    """
     normalized_method = method.lower().strip()
+
+    if normalized_method == "auto":
+        return auto_search(
+            transcript_words,
+            target_words,
+            inverted_index=inverted_index,
+            length_tolerance=length_tolerance,
+            extra_context=extra_context,
+        )
+
     score_fn = get_score_fn(score_fn_name) if normalized_method != "exact" else None
 
     if normalized_method == "exact":
@@ -198,5 +287,5 @@ def search_dialogue(
     else:
         raise ValueError(
             f"Unknown search method '{method}'. Valid methods: "
-            "['exact', 'fuzzy', 'rare_anchor_fuzzy']"
+            "['auto', 'exact', 'fuzzy', 'rare_anchor_fuzzy']"
         )

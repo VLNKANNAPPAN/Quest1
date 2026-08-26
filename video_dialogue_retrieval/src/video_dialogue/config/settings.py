@@ -33,8 +33,8 @@ class PipelineConfig:
     # Search & matching parameters
     fuzzy_length_tolerance: int = 2
     fuzzy_extra_context: int = 2
-    default_search_method: str = "rare_anchor_fuzzy"
-    default_score_fn: str = "difflib"
+    default_search_method: str = "auto"
+    default_score_fn: str = "rapidfuzz"
     default_top_k: int = 5
 
     def __post_init__(self):
