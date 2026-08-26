@@ -38,13 +38,6 @@ dependencies = [
 embedding = [
     "sentence-transformers>=2.2.0"
 ]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "pandas>=2.0.0",
-    "Pillow>=9.5.0",
-    "torch>=2.0.0",
-]
 
 [project.scripts]
 video-dialogue = "video_dialogue.cli:main"
@@ -52,7 +45,3 @@ video-dialogue = "video_dialogue.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --tb=short"

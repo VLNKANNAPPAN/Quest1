@@ -39,12 +39,14 @@ let's start with step 1
 Summary Point --> Since I don't have a GPU , I thought using Kaggle's t4 GPU will be better , so first planned on creating a jupyter notebook and checking the full worrkflow
 
 5)
-let's begin with phase 1
-Let's move on to step 2
-we can move to the next step
-Let's start with ASR
-i think we can move to the next phase, or should we deal with the overlap issue
-ok give me the code for the new method of stroing the starting and ending timestamps to deal with overlaps , then after that we can move to step 5
+
+i) let's begin with phase 1
+ii) Let's move on to step 2
+iii) we can move to the next step
+iv) Let's start with ASR
+v) i think we can move to the next phase, or should we deal with the overlap issue
+vi) ok give me the code for the new method of stroing the starting and ending timestamps to deal with overlaps , then after that we can move to step 5
+vii) 
 let's go one to step 5
 transcript is availble till the 52nd minute , i think there is no speech post that, now let's move onto the next step
 Matches: [3]

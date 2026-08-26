@@ -40,10 +40,9 @@ Quest1/
 │   ├── target-dialogue-v2.ipynb       # Streamlined VAD & model benchmarking
 │   └── target-dialogue-v3.ipynb       # Audio-first, Chromaprint dedup & inverted index
 ├── video_dialogue_retrieval/          # Modular Python package
-│   ├── pyproject.toml                 # Modern package metadata & build config
+│   ├── pyproject.toml                 # Package metadata & build config
 │   ├── setup.py                       # Package setup script
 │   ├── requirements.txt               # Production dependencies
-│   ├── requirements-dev.txt           # Testing dependencies
 │   ├── config/settings.py             # PipelineConfig dataclass, paths & defaults
 │   ├── src/video_dialogue/
 │   │   ├── core/models.py             # Typed dataclasses (VideoRecord, DialogueMatch, etc.)
@@ -56,7 +55,7 @@ Quest1/
 │   │   ├── pipeline/orchestrator.py   # DialogueRetrievalPipeline & find_dialogue API
 │   │   ├── benchmark/benchmark.py     # Multi-variant search & model benchmark harness
 │   │   └── cli.py                     # Rich CLI (search, benchmark, inspect, clear-cache)
-│   ├── tests/                         # Complete 34-test automated pytest suite
+│   ├── run.py                         # Standalone runner entrypoint
 │   └── examples/                      # Executable demo and quickstart scripts
 └── README.md                          # Repository overview & manual
 ```
@@ -66,7 +65,7 @@ Quest1/
 ## ⚙️ Installation & Setup
 
 ### 1. Prerequisites
-- **Python**: 3.9+ (tested on Python 3.11 and 3.12)
+- **Python**: 3.9+ (tested on Python 3.11, 3.12, 3.13)
 - **FFmpeg**: Required for audio conversion and frame extraction (`ffmpeg` and `ffprobe` in PATH).
 
 ### 2. Virtual Environment & Dependencies
@@ -158,20 +157,3 @@ python run.py inspect
 # Clear cached database entries
 python run.py clear-cache
 ```
-
----
-
-## 🧪 Automated Testing
-
-Run the full 34-test automated pytest suite:
-```bash
-pytest video_dialogue_retrieval/tests -v
-```
-
-All tests validate:
-- SQLite persistence, migration, and fingerprint cross-URL transcript reuse
-- Acoustic fingerprint determinism and content sensitivity
-- Inverted index $O(1)$ lookup and dynamic IDF rarity calculation
-- Multi-anchor candidate retry and graceful sliding window fallback
-- Timestamp to discrete frame calculation and FFmpeg JPEG extraction
-- Full end-to-end pipeline execution with mock and live ASR

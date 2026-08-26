@@ -1,6 +1,6 @@
 cache/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
 *.egg-info/
 .ipynb_checkpoints/
@@ -8,3 +8,15 @@ scratch/
 *approach*
 *Approach*
 *.docx
+.venv/
+env/
+venv/
+*.db
+*.db-journal
+*.wav
+*.mp4
+*.mkv
+*.jpg
+*.png
+.DS_Store
+Thumbs.db

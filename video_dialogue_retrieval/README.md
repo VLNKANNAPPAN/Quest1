@@ -72,18 +72,7 @@ video_dialogue_retrieval/
 │       │   ├── __init__.py
 │       │   └── benchmark.py           # Multi-variant search & Whisper model size benchmarks
 │       └── cli.py                     # Rich CLI (search, benchmark, inspect, clear-cache)
-├── tests/                             # Comprehensive automated pytest suite
-│   ├── __init__.py
-│   ├── conftest.py                    # Fixtures (synthetic audio, video, mock transcripts)
-│   ├── test_database.py               # SQLite storage & dedup tests
-│   ├── test_fingerprint.py            # Fingerprint determinism & frequency discrimination tests
-│   ├── test_normalizer.py             # Normalization tests
-│   ├── test_scorers.py                # Similarity scorer comparison tests
-│   ├── test_index.py                  # Inverted index & dynamic rarity tests
-│   ├── test_search_engine.py          # Exact, fuzzy & rare-anchor search tests
-│   ├── test_frame_extractor.py        # Frame calculation & image extraction tests
-│   ├── test_pipeline.py               # End-to-end pipeline execution tests
-│   └── test_benchmark.py              # Benchmark harness execution tests
+├── run.py                             # Standalone runner entrypoint
 └── examples/
     ├── quickstart.py                  # API quickstart
     ├── local_video_demo.py            # 100% offline local video search & frame extraction demo
@@ -118,7 +107,7 @@ pip install -r requirements.txt
 pip install -e .
 
 # (Optional) Install development and embedding dependencies
-pip install -e ".[dev,embedding]"
+pip install -e ".[embedding]"
 ```
 
 ---
@@ -182,7 +171,7 @@ pipeline = DialogueRetrievalPipeline(config=config)
 result = pipeline.run(
     video_url="movie_clip.mp4",
     target_dialogue="To be or not to be",
-    method="rare_anchor_fuzzy",
+    method="auto",
     score_fn_name="rapidfuzz",
 )
 ```
@@ -213,31 +202,17 @@ for machine-readable or quiet runs.
 
 ### 2. Run Algorithm Benchmark
 ```bash
-python -m video_dialogue.cli benchmark --runs 5
+python run.py benchmark --runs 5
 ```
 
 ### 3. Inspect Database Cache
 ```bash
-python -m video_dialogue.cli inspect
+python run.py inspect
 ```
 
 ### 4. Clear Cache
 ```bash
-python -m video_dialogue.cli clear-cache
-```
-
----
-
-## 🧪 Automated Testing
-
-Execute the full automated test suite with pytest:
-```bash
-pytest tests -v
-```
-
-Run test suite with test coverage:
-```bash
-pytest --cov=video_dialogue tests
+python run.py clear-cache
 ```
 
 ---

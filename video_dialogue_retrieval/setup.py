@@ -15,7 +15,6 @@ setup(
     ],
     extras_require={
         "embedding": ["sentence-transformers>=2.2.0"],
-        "dev": ["pytest>=7.0.0", "pytest-cov>=4.0.0", "pandas>=2.0.0", "Pillow>=9.5.0", "torch>=2.0.0"],
     },
     entry_points={
         "console_scripts": [
