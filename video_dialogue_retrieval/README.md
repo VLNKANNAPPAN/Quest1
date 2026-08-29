@@ -2,28 +2,31 @@
 
 An industrial-grade, audio-first, fingerprint-deduplicated video dialogue retrieval and visual frame localization pipeline.
 
+---
+
 ## 🚀 Key Architectural Highlights
 
-1. **Audio-First Acquisition & Acoustic Fingerprinting (Chromaprint)**
+1. **Audio-First Acquisition & Parallel Ingestion**
    - Downloads/extracts lightweight audio (mono 16kHz PCM WAV) before touching heavy video containers.
+   - Multi-tier adaptive format fallback (`bestaudio` → `worst[height<=240]` → `worst[height<=360]`) ensures high compatibility for both DASH (YouTube) and HLS muxed streams (OK.ru, direct URLs).
+   - High-throughput parallel fragment downloads (`concurrent_fragment_downloads = 8`) dramatically reduce download times.
+
+2. **Persistent SQLite Caching & Acoustic Fingerprint Deduplication**
    - Computes robust Chromaprint acoustic fingerprints via `pyacoustid` with an automatic fallback to FFmpeg's built-in chromaprint muxer.
-   - Uniquely identifies audio content across container formats, bitrates, and re-encodes.
-
-2. **Persistent SQLite Caching & Cross-URL Deduplication**
-   - Stores video metadata and Whisper ASR transcripts in SQLite.
+   - Stores video metadata and Whisper ASR transcripts in SQLite (`pipeline.db`).
    - Identifies previously indexed media by acoustic fingerprint, automatically reusing cached word-level transcripts across identical content under different URLs or file paths.
+   - Validates duration tolerance ($\Delta \le 2.0\text{s}$) to avoid false cache hits on trimmed media.
 
-3. **High-Performance Multi-Strategy Dialogue Search**
-   - **Exact Phrase Search**: Instant contiguous sub-array matching.
-   - **Fuzzy Sliding Window**: Exhaustive Levenshtein and SequenceMatcher distance calculations.
-   - **Rare-Anchor Fuzzy Search**: Uses dynamic, per-call Inverse Document Frequency (IDF) rarity to identify the most discriminative token in the query and bounds search only around candidate neighborhoods.
-   - **Inverted Token Index**: `O(1)` token position lookups for sub-millisecond anchor candidate retrieval.
-   - **Pluggable Scorers**: RapidFuzz (C++ Levenshtein), Difflib (Ratcliff-Obershelp), and Sentence-Transformers (Dense vector cosine similarity).
+3. **High-Performance Multi-Strategy Dialogue Search Cascade**
+   - **Stage 1: Exact Phrase Search**: Instant contiguous sub-array matching ($< 0.02\text{ms}$).
+   - **Stage 2: Rare-Anchor Fuzzy Search**: Uses dynamic, per-call Inverse Document Frequency (IDF) rarity ($\ln(N / (1 + \text{freq}))$) to identify the most discriminative token in the query and bounds search only around candidate neighborhoods via an $O(1)$ inverted index.
+   - **Stage 3: Sliding Window Fallback**: Exhaustive sliding window with length tolerance ($\pm 2$ words) and RapidFuzz C++ Levenshtein distance calculations.
+   - **Pluggable Scorers**: RapidFuzz (C++ Levenshtein), Difflib (Ratcliff-Obershelp), and optional dense vector cosine similarity.
 
 4. **Lazy Full Video Acquisition & Precise Frame Localization**
    - Defers heavy video download until a match is confirmed.
-   - Translates audio timestamps to discrete video frame indices (`round(timestamp * FPS)`).
-   - Extracts crisp JPEG frame captures at the exact match onset via FFmpeg input seeking.
+   - Translates continuous audio timestamps to discrete video frame indices: $\text{Frame} = \text{round}(\text{timestamp} \times \text{FPS})$.
+   - Extracts crisp JPEG frame captures at the exact match onset via FFmpeg fast input seeking.
 
 ---
 
@@ -34,12 +37,14 @@ video_dialogue_retrieval/
 ├── pyproject.toml                     # Modern package metadata & build config
 ├── setup.py                           # Legacy/standard package installation script
 ├── requirements.txt                   # Production dependencies
-├── requirements-dev.txt               # Testing & development dependencies
-├── README.md                          # Package documentation
+├── README.md                          # Package documentation (this file)
 ├── .gitignore                         # Standard Python ignores
+├── run.py                             # Standalone runner entrypoint
+│
 ├── config/
 │   ├── __init__.py
 │   └── settings.py                    # PipelineConfig dataclass, paths & defaults
+│
 ├── src/
 │   └── video_dialogue/
 │       ├── __init__.py                # Public API entrypoint
@@ -51,11 +56,11 @@ video_dialogue_retrieval/
 │       │   └── db.py                  # DatabaseManager (SQLite connection pool & schema)
 │       ├── audio/                     # Audio acquisition & fingerprinting
 │       │   ├── __init__.py
-│       │   ├── downloader.py          # MediaManager (yt-dlp + local media handlers)
+│       │   ├── downloader.py          # MediaManager (yt-dlp + 8 concurrent downloads + FFmpeg)
 │       │   └── fingerprint.py         # Chromaprint acoustic fingerprinting
 │       ├── asr/                       # Speech Recognition
 │       │   ├── __init__.py
-│       │   └── transcriber.py         # WhisperTranscriber (faster-whisper + VAD + word timestamps)
+│       │   └── transcriber.py         # WhisperTranscriber (faster-whisper + Silero VAD + word timestamps)
 │       ├── search/                    # Search engines & indexing
 │       │   ├── __init__.py
 │       │   ├── normalizer.py          # Text cleaner & word index builder
@@ -71,12 +76,15 @@ video_dialogue_retrieval/
 │       ├── benchmark/                 # Evaluation suite
 │       │   ├── __init__.py
 │       │   └── benchmark.py           # Multi-variant search & Whisper model size benchmarks
+│       ├── progress.py                # Progress bar & terminal display utilities
 │       └── cli.py                     # Rich CLI (search, benchmark, inspect, clear-cache)
-├── run.py                             # Standalone runner entrypoint
+│
 └── examples/
-    ├── quickstart.py                  # API quickstart
+    ├── quickstart.py                  # Basic Python API quickstart
+    ├── live_youtube_search.py         # Rich interactive YouTube search demo
     ├── local_video_demo.py            # 100% offline local video search & frame extraction demo
-    └── benchmark_demo.py              # Multi-variant search benchmark demo
+    ├── benchmark_demo.py              # Multi-variant search benchmark demo
+    └── run_project_demo.py            # Complete end-to-end showcase runner
 ```
 
 ---
@@ -84,12 +92,10 @@ video_dialogue_retrieval/
 ## ⚙️ Installation
 
 ### 1. Prerequisites
-- **Python**: 3.9+
+- **Python**: 3.9+ (tested on 3.11, 3.12, 3.13)
 - **FFmpeg**: Required for audio conversion and frame extraction (`ffmpeg` and `ffprobe` in PATH).
 
 ### 2. Virtual Environment & Dependencies
-
-Creating an isolated virtual environment is recommended to avoid package conflicts:
 
 ```bash
 # Navigate to the package directory
@@ -102,12 +108,9 @@ python -m venv .venv
 .\.venv\Scripts\activate
 # (Or on Linux / macOS: source .venv/bin/activate)
 
-# Install production dependencies
+# Install production dependencies and install package in editable mode
 pip install -r requirements.txt
 pip install -e .
-
-# (Optional) Install development and embedding dependencies
-pip install -e ".[embedding]"
 ```
 
 ---
@@ -141,17 +144,18 @@ video_dialogue_retrieval/cache/frames/<video_id>_frame_<frame_number>.jpg
 from video_dialogue import find_dialogue
 
 result = find_dialogue(
-    video_url="https://example.com/video.mp4", # or local path "movie.mp4"
-    target_dialogue="My mind rebels at stagnation",
+    video_url="https://www.youtube.com/watch?v=W_s81Dn4uEI", # or local path "movie.mp4"
+    target_dialogue="I freaking love geography",
     model_size="tiny",  # default: tiny (fastest); use 'small' or 'medium' for higher ASR precision
-    top_k=3,
+    top_k=1,
 )
 
-if result["success"]:
-    for match in result["matches"]:
-        print(f"Rank {match['rank']}: {match['start_timestamp']:.2f}s (Frame #{match['start_frame']})")
-        print(f"Text: \"{match['matched_text']}\"")
-        print(f"Frame Image: {match['frame_path']}")
+if result["success"] and result["matches"]:
+    best = result["matches"][0]
+    print(f"Timestamp  : {best['start_timestamp']:.2f}s -> {best['end_timestamp']:.2f}s")
+    print(f"Frame Index: #{best['start_frame']}")
+    print(f"Dialogue   : \"{best['matched_text']}\"")
+    print(f"Frame Image: {best['frame_path']}")
 ```
 
 ### Advanced Pipeline Configuration
@@ -165,6 +169,7 @@ config = PipelineConfig(
     whisper_beam_size=2,
     whisper_vad_filter=True,
     fuzzy_length_tolerance=2,
+    concurrent_fragment_downloads=8,
 )
 
 pipeline = DialogueRetrievalPipeline(config=config)
@@ -180,7 +185,7 @@ result = pipeline.run(
 
 ## 🖥️ Command-Line Interface (CLI)
 
-The package provides the `video-dialogue` command-line executable:
+The package provides the `run.py` command-line executable:
 
 ### 1. Search Dialogue
 ```bash
@@ -189,16 +194,12 @@ python run.py search \
   --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" \
   --query "I freaking love geography"
 
-# Or with custom options:
+# Or with custom model size (tiny, base, small, medium, large-v3):
 python run.py search \
   --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" \
   --query "I freaking love geography" \
-  --model-size tiny
+  --model-size small
 ```
-
-The terminal reports each stage, download percentage and speed, then ASR progress as
-Whisper yields audio segments. Progress is enabled by default; use `--no-progress`
-for machine-readable or quiet runs.
 
 ### 2. Run Algorithm Benchmark
 ```bash
@@ -225,11 +226,18 @@ python examples/benchmark_demo.py
 ```
 
 Sample output:
-| Variant                                  | Top-1 Accuracy | Mean Absolute Error (s) | Mean Latency (ms) |
-|------------------------------------------|----------------|-------------------------|-------------------|
-| `exact`                                  | 100.0%         | 0.000s                  | 0.018 ms          |
-| `rare_anchor + rapidfuzz (inverted)`     | 100.0%         | 0.000s                  | 0.045 ms          |
-| `rare_anchor + difflib (inverted)`       | 100.0%         | 0.000s                  | 0.082 ms          |
-| `rare_anchor + difflib (linear)`         | 100.0%         | 0.000s                  | 0.110 ms          |
-| `fuzzy + rapidfuzz`                      | 100.0%         | 0.000s                  | 0.420 ms          |
-| `fuzzy + difflib`                        | 100.0%         | 0.000s                  | 1.150 ms          |
+| Variant | Top-1 Accuracy | Mean Absolute Error (s) | Mean Latency (ms) |
+|:---|:---:|:---:|:---:|
+| `exact` | 100.0% | 0.000s | 0.018 ms |
+| `rare_anchor + rapidfuzz (inverted)` | 100.0% | 0.000s | 0.045 ms |
+| `rare_anchor + difflib (inverted)` | 100.0% | 0.000s | 0.082 ms |
+| `rare_anchor + difflib (linear)` | 100.0% | 0.000s | 0.110 ms |
+| `fuzzy + rapidfuzz` | 100.0% | 0.000s | 0.420 ms |
+| `fuzzy + difflib` | 100.0% | 0.000s | 1.150 ms |
+
+---
+
+## 📖 Related Documents
+
+- **[Approach & Design (`../Approach.md`)](../Approach.md)**: First-principles conceptualization, initial handwritten brainstorming, and modular pipeline evolution.
+- **[Interview Master Guide (`../Video_Dialogue_Retrieval_Interview_Master_Guide.md`)](../Video_Dialogue_Retrieval_Interview_Master_Guide.md)**: Deep technical architecture handbook, line-by-line mechanics, and top 15 interview coding tasks.

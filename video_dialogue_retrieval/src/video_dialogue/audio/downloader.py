@@ -217,15 +217,15 @@ def download_audio_only_with_metadata(
     tmp_template = str(out_dir / f"{video_id}_raw.%(ext)s")
     ydl_opts = {
         "outtmpl": tmp_template,
-        # Whisper receives 16 kHz mono PCM, so downloading a high-bitrate
-        # source only wastes bandwidth before conversion.
-        "format": f"bestaudio[abr<={max_bitrate_kbps}]/bestaudio/best",
+        "format": f"bestaudio[abr<={max_bitrate_kbps}]/bestaudio/worst[height<=240]/worst[height<=360]/worst",
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "progress_hooks": [progress_hook] if progress_hook else [],
         "ffmpeg_location": ffmpeg_executable(),
+        "concurrent_fragment_downloads": 8,  # Parallel fragment downloads
     }
+
     def download() -> Dict[str, Any]:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             return ydl.extract_info(url_or_path, download=True)
