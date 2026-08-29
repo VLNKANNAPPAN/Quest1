@@ -240,4 +240,3 @@ Sample output:
 ## 📖 Related Documents
 
 - **[Approach & Design (`../Approach.md`)](../Approach.md)**: First-principles conceptualization, initial handwritten brainstorming, and modular pipeline evolution.
-- **[Interview Master Guide (`../Video_Dialogue_Retrieval_Interview_Master_Guide.md`)](../Video_Dialogue_Retrieval_Interview_Master_Guide.md)**: Deep technical architecture handbook, line-by-line mechanics, and top 15 interview coding tasks.

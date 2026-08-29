@@ -58,7 +58,6 @@ The exact file path is printed to the console on every run and stored in the res
 ```
 Quest1/
 ├── Approach.md                                        # Handwritten first principles, math & pipeline evolution
-├── Video_Dialogue_Retrieval_Interview_Master_Guide.md # Deep technical architecture, line-by-line mechanics & 15 interview coding tasks
 ├── prompts.txt                                        # Development prompts and engineering log
 ├── README.md                                          # Root repository overview (this file)
 │
@@ -209,4 +208,3 @@ python examples/run_project_demo.py
 ## 📖 In-Depth Documentation
 
 - **[Approach & Design (`Approach.md`)](Approach.md)**: First-principles handwritten brainstorming, mathematical formulation, TF-IDF anchor intuition, and evolutionary pipeline transitions.
-- **[Interview Master Guide (`Video_Dialogue_Retrieval_Interview_Master_Guide.md`)](Video_Dialogue_Retrieval_Interview_Master_Guide.md)**: Comprehensive deep technical handbook, line-by-line file mechanics, top 15 interview coding tasks with complete solutions, ripple dependency rules, and live pairing protocols.
