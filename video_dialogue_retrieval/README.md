@@ -119,12 +119,12 @@ pip install -e .
 
 For every target dialogue query, the system delivers 4 essential outputs:
 
-| Key Output | Description | Example |
+| Key Output | Description | Example (Steve Jobs Stanford Address) |
 | :--- | :--- | :--- |
-| **1. Timestamp** | Exact audio onset & interval (start / end in seconds) | `530.44s - 532.68s` (onset: `530.44s`) |
-| **2. Frame Number** | Discrete video frame index: $\text{round}(\text{timestamp} \times \text{FPS})$ | `#6365` |
-| **3. Extracted Dialogue** | Raw transcribed text matched around the target query | `"African love geography."` |
-| **4. Video Frame Image** | High-res JPEG snapshot extracted at the exact timestamp | `cache/frames/e62fe991ec4f0366_frame_6365.jpg` |
+| **1. Timestamp** | Exact audio onset & interval (start / end in seconds) | `873.12s - 876.48s` (onset: `873.12s` / `14:33.120`) |
+| **2. Frame Number** | Discrete video frame index: $\text{round}(\text{timestamp} \times \text{FPS})$ | `#26167` |
+| **3. Extracted Dialogue** | Raw transcribed text matched around the target query | `"Stay hungry. Stay foolish."` |
+| **4. Video Frame Image** | High-res JPEG snapshot extracted at the exact timestamp | `cache/frames/UF8uR6Z6KLc_frame_26167.jpg` |
 
 ### 🖼️ Where to Access Extracted Frames
 
@@ -144,8 +144,8 @@ video_dialogue_retrieval/cache/frames/<video_id>_frame_<frame_number>.jpg
 from video_dialogue import find_dialogue
 
 result = find_dialogue(
-    video_url="https://www.youtube.com/watch?v=W_s81Dn4uEI", # or local path "movie.mp4"
-    target_dialogue="I freaking love geography",
+    video_url="https://www.youtube.com/watch?v=UF8uR6Z6KLc", # Steve Jobs Stanford Address
+    target_dialogue="Stay hungry stay foolish",
     model_size="tiny",  # default: tiny (fastest); use 'small' or 'medium' for higher ASR precision
     top_k=1,
 )
@@ -174,8 +174,8 @@ config = PipelineConfig(
 
 pipeline = DialogueRetrievalPipeline(config=config)
 result = pipeline.run(
-    video_url="movie_clip.mp4",
-    target_dialogue="To be or not to be",
+    video_url="https://www.youtube.com/watch?v=UF8uR6Z6KLc",
+    target_dialogue="Stay hungry stay foolish",
     method="auto",
     score_fn_name="rapidfuzz",
 )
@@ -191,13 +191,13 @@ The package provides the `run.py` command-line executable:
 ```bash
 # Simplest command (auto strategy selection):
 python run.py search \
-  --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" \
-  --query "I freaking love geography"
+  --video "https://www.youtube.com/watch?v=UF8uR6Z6KLc" \
+  --query "Stay hungry stay foolish"
 
 # Or with custom model size (tiny, base, small, medium, large-v3):
 python run.py search \
-  --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" \
-  --query "I freaking love geography" \
+  --video "https://www.youtube.com/watch?v=UF8uR6Z6KLc" \
+  --query "Stay hungry stay foolish" \
   --model-size small
 ```
 

@@ -44,8 +44,8 @@ def print_banner(text: str):
 
 
 def main():
-    video_url = "https://www.youtube.com/watch?v=W_s81Dn4uEI"
-    target_query = "I freaking love geography"
+    video_url = "https://www.youtube.com/watch?v=UF8uR6Z6KLc"
+    target_query = "Stay hungry stay foolish"
     model_size = "small"
 
     if len(sys.argv) > 1:

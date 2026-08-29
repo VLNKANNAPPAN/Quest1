@@ -13,12 +13,12 @@ An industrial-grade, audio-first, fingerprint-deduplicated video dialogue retrie
 
 For every target dialogue query, the system delivers **4 essential outputs**:
 
-| # | Key Output | Description | Example |
+| # | Key Output | Description | Example (Steve Jobs Stanford Address) |
 |---|:---|:---|:---|
-| **1** | **Exact Timestamp** | Continuous audio onset & interval (`HH:MM:SS.sss` + decimal seconds) | `530.44s - 532.68s` (onset: `530.44s`) |
-| **2** | **Frame Number** | Discrete video frame index: $\text{round}(\text{timestamp} \times \text{FPS})$ | `#6365` |
-| **3** | **Extracted Dialogue** | Raw transcribed speech matched around the target query | `"African love geography."` |
-| **4** | **Video Frame Image** | High-resolution JPEG snapshot captured at exact onset | `cache/frames/e62fe991ec4f0366_frame_6365.jpg` |
+| **1** | **Exact Timestamp** | Continuous audio onset & interval (`HH:MM:SS.sss` + decimal seconds) | `873.12s - 876.48s` (onset: `873.12s` / `14:33.120`) |
+| **2** | **Frame Number** | Discrete video frame index: $\text{round}(\text{timestamp} \times \text{FPS})$ | `#26167` |
+| **3** | **Extracted Dialogue** | Raw transcribed speech matched around the target query | `"Stay hungry. Stay foolish."` |
+| **4** | **Video Frame Image** | High-resolution JPEG snapshot captured at exact onset | `cache/frames/UF8uR6Z6KLc_frame_26167.jpg` |
 
 ### 🖼️ Where to Access Extracted Frames
 All extracted frame snapshots are saved automatically to the **`cache/frames/`** directory:
@@ -133,8 +133,8 @@ from video_dialogue import find_dialogue
 
 # Automatically downloads audio, checks DB cache, transcribes, searches, and extracts frame
 result = find_dialogue(
-    video_url="https://www.youtube.com/watch?v=W_s81Dn4uEI",
-    target_dialogue="I freaking love geography",
+    video_url="https://www.youtube.com/watch?v=UF8uR6Z6KLc",
+    target_dialogue="Stay hungry stay foolish",
     model_size="tiny",  # Options: tiny, base, small, medium, large-v3
     top_k=1,            # Return top-1 best match
 )
@@ -153,10 +153,10 @@ From `video_dialogue_retrieval/`:
 
 ```bash
 # 1. Search dialogue on YouTube / URL:
-python run.py search --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" --query "I freaking love geography"
+python run.py search --video "https://www.youtube.com/watch?v=UF8uR6Z6KLc" --query "Stay hungry stay foolish"
 
 # 2. Search with a specific Whisper model size (tiny, base, small, medium, large-v3):
-python run.py search --video "https://www.youtube.com/watch?v=W_s81Dn4uEI" --query "I freaking love geography" --model-size small
+python run.py search --video "https://www.youtube.com/watch?v=UF8uR6Z6KLc" --query "Stay hungry stay foolish" --model-size small
 
 # 3. Search a local video file (100% offline):
 python run.py search --video "path/to/my_video.mp4" --query "hello world"
